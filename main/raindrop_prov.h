@@ -93,4 +93,4 @@ esp_err_t app_prov_configure_sta(wifi_config_t *wifi_cfg);
  *  - ESP_OK      : Provisioning started successfully
  *  - ESP_FAIL    : Failed to start
  */
-esp_err_t app_prov_start_ble_provisioning(int security, const protocomm_security_pop_t *pop);
+esp_err_t raindrop_start_ble_provisioning(int security, const protocomm_security_pop_t *pop);

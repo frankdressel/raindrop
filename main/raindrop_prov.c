@@ -21,7 +21,8 @@
 #include <protocomm_security1.h>
 #include <wifi_provisioning/wifi_config.h>
 
-#include "app_prov.h"
+#include "raindrop_prov.h"
+#include "raindrop_prov_handlers.h"
 
 static const char *TAG = "app_prov";
 static const char *ssid_prefix = "PROV_";
@@ -62,6 +63,7 @@ static esp_err_t app_prov_start_service(void)
         {"prov-session", 0xFF51},
         {"prov-config",  0xFF52},
         {"proto-ver",    0xFF53},
+        {"custom-config",  0xFF54},
     };
 
     /* Config for protocomm_ble_start() */
@@ -113,6 +115,13 @@ static esp_err_t app_prov_start_service(void)
         protocomm_ble_stop(g_prov->pc);
         return ESP_FAIL;
     }
+    /* Add endpoint for provisioning to set custom config */
+    if (protocomm_add_endpoint(g_prov->pc, "custom-config",
+                               custom_prov_config_data_handler, NULL) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set custom provisioning endpoint");
+        protocomm_ble_stop(g_prov->pc);
+        return ESP_FAIL;
+    }
 
     ESP_LOGI(TAG, "Provisioning started with BLE devname : '%s'", config.device_name);
     return ESP_OK;
@@ -122,6 +131,8 @@ static void app_prov_stop_service(void)
 {
     /* Remove provisioning endpoint */
     protocomm_remove_endpoint(g_prov->pc, "prov-config");
+    /* Remove provisioning endpoint */
+    protocomm_remove_endpoint(g_prov->pc, "custom-config");
     /* Unset provisioning security */
     protocomm_unset_security(g_prov->pc, "prov-session");
     /* Unset provisioning version endpoint */
@@ -325,7 +336,7 @@ esp_err_t app_prov_configure_sta(wifi_config_t *wifi_cfg)
     return ESP_OK;
 }
 
-esp_err_t app_prov_start_ble_provisioning(int security, const protocomm_security_pop_t *pop)
+esp_err_t raindrop_start_ble_provisioning(int security, const protocomm_security_pop_t *pop)
 {
     /* If provisioning app data present,
      * means provisioning app is already running */

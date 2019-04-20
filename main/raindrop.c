@@ -1,5 +1,4 @@
 
-#include "app_prov.h"
 #include "driver/rmt.h"
 #include "esp_event_loop.h"
 #include "esp_http_client.h"
@@ -15,6 +14,9 @@
 #include <esp_system.h>
 #include <lwip/err.h>
 #include <lwip/sys.h>
+#include <string.h>
+
+#include "raindrop_prov.h"
 
 static const char *RAINDROP_TAG = "RAINDROP";
 
@@ -102,7 +104,32 @@ void precipitationdatadownload(){
     ESP_LOGI(RAINDROP_TAG, "Start data download");
     free(precipitationdata);
 
-    char *url = "https://dwd:dwdaccount@ladikas.de/dwd/simple/relative/DRESDEN/0-12h/precipitation";
+    nvs_handle my_handle;
+    esp_err_t nvserr = nvs_open("storage", NVS_READWRITE, &my_handle);
+
+    size_t required_usernamesize;
+    nvs_get_str(my_handle, "dwduser", NULL, &required_usernamesize );
+    char *username=malloc(required_usernamesize);
+    nvs_get_str(my_handle, "dwduser", username, &required_usernamesize);
+
+    size_t required_passwordsize;
+    nvs_get_str(my_handle, "dwdpassword", NULL, &required_passwordsize );
+    char *password=malloc(required_passwordsize);
+    nvs_get_str(my_handle, "dwdpassword", password, &required_passwordsize);
+    nvs_close(my_handle);
+    ESP_LOGI(RAINDROP_TAG, "%s", username);
+    ESP_LOGI(RAINDROP_TAG, "%s", password);
+    char url[1000];
+    url[0] = '\0';
+    strcat(url, "https://");
+    strcat(url, username);
+    strcat(url, ":");
+    strcat(url, password);
+    strcat(url, "@ladikas.de/dwd/simple/relative/DRESDEN/0-12h/precipitation");
+    ESP_LOGI(RAINDROP_TAG, "%s", url);
+    free(username);
+    free(password);
+
 
     precipitationdata = malloc(5);
     esp_http_client_config_t config = {
@@ -279,7 +306,7 @@ void app_main() {
     if (provisioned == false) {
         /* If not provisioned, start provisioning via BLE */
         ESP_LOGI(RAINDROP_TAG, "Starting BLE provisioning");
-        app_prov_start_ble_provisioning(security, pop);
+        raindrop_start_ble_provisioning(security, pop);
 
         app_wifi_wait_connected();
         loop();

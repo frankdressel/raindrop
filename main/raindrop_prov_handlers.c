@@ -19,9 +19,13 @@
 
 #include <wifi_provisioning/wifi_config.h>
 
-#include "app_prov.h"
+#include "raindrop_prov.h"
+#include "custom_config.pb-c.h"
 
-static const char* TAG = "app_prov_handler";
+#include "nvs_flash.h"
+#include "nvs.h"
+
+static const char* TAG = "raindrop_prov_handlers";
 
 /* Provide definition of wifi_prov_ctx_t */
 struct wifi_prov_ctx {
@@ -44,6 +48,55 @@ static void free_config(wifi_prov_ctx_t **ctx)
 {
     free(*ctx);
     *ctx = NULL;
+}
+
+int custom_prov_config_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen, uint8_t **outbuf, ssize_t *outlen, void *priv_data)
+{
+    CustomConfigRequest *req;
+    CustomConfigResponse resp;
+
+    req = custom_config_request__unpack(NULL, inlen, inbuf);
+    if (!req) {
+        ESP_LOGE(TAG, "Unable to unpack config data");
+    }
+
+    custom_config_response__init(&resp);
+    resp.status = CUSTOM_CONFIG_STATUS__ConfigFail;
+
+    ESP_LOGI(TAG, "Username: %s, password: %s", req->username, req->password);
+//    strlcpy(config.username, req->username, sizeof(config.username));
+//    strlcpy(config.password, req->password, sizeof(config.password));
+
+    nvs_handle my_handle;
+    esp_err_t nvserr = nvs_open("storage", NVS_READWRITE, &my_handle);
+    nvs_set_str(my_handle, "dwduser", req->username);
+    nvs_commit(my_handle);
+    nvs_set_str(my_handle, "dwdpassword", req->password);
+    nvs_commit(my_handle);
+    nvs_close(my_handle);
+
+    custom_config_request__free_unpacked(req, NULL);
+
+    esp_err_t err = ESP_OK;
+
+    resp.status = CUSTOM_CONFIG_STATUS__ConfigSuccess;
+
+    resp.dummy = 47;    // Set a non zero value of dummy
+    resp.has_dummy = 1;
+
+    *outlen = custom_config_response__get_packed_size(&resp);
+    if (*outlen <= 0) {
+        ESP_LOGE(TAG, "Invalid encoding for response");
+    }
+
+    *outbuf = (uint8_t *) malloc(*outlen);
+    if (*outbuf == NULL) {
+        ESP_LOGE(TAG, "System out of memory");
+    }
+
+    custom_config_response__pack(&resp, *outbuf);
+
+    return ESP_OK;
 }
 
 static esp_err_t get_status_handler(wifi_prov_config_get_data_t *resp_data, wifi_prov_ctx_t **ctx)
